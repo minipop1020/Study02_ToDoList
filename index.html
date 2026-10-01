@@ -250,6 +250,20 @@
       font-size: 13px;
     }
 
+    .todo-item.editing {
+      gap: 6px;
+    }
+
+    .edit-input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .todo-item.editing select,
+    .todo-item.editing input[type="text"] {
+      padding: 4px 8px;
+    }
+
     .empty-message,
     .error-message {
       margin: 16px 0;
@@ -340,6 +354,7 @@
     // ---------- 상태 ----------
     let todos = [];
     let currentFilter = 'all';
+    let editingId = null;
 
     // ---------- 화면 요소 ----------
     const addForm = document.getElementById('add-form');
@@ -348,6 +363,7 @@
     const todoList = document.getElementById('todo-list');
     const emptyMessage = document.getElementById('empty-message');
     const errorMessage = document.getElementById('error-message');
+    const clearCompletedButton = document.getElementById('clear-completed-button');
 
     // ---------- 저장 ----------
     function isValidTodo(todo) {
@@ -424,8 +440,78 @@
       return true;
     }
 
+    function findTodo(id) {
+      return todos.find((todo) => todo.id === id);
+    }
+
+    function toggleTodo(id) {
+      const todo = findTodo(id);
+      if (todo) {
+        todo.done = !todo.done;
+      }
+    }
+
+    function updateTodo(id, text, category) {
+      const todo = findTodo(id);
+      const trimmed = text.trim().slice(0, MAX_TEXT_LENGTH);
+      if (!todo || trimmed === '') {
+        return false;
+      }
+      todo.text = trimmed;
+      todo.category = category;
+      return true;
+    }
+
+    function deleteTodo(id) {
+      todos = todos.filter((todo) => todo.id !== id);
+    }
+
+    function clearCompleted() {
+      todos = todos.filter((todo) => !todo.done);
+    }
+
+    function countCompleted() {
+      return todos.filter((todo) => todo.done).length;
+    }
+
     // ---------- 화면 그리기 ----------
+    function createButton(className, text) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = className;
+      button.textContent = text;
+      return button;
+    }
+
+    function createEditItem(todo) {
+      const item = document.createElement('li');
+      item.className = 'todo-item editing';
+      item.dataset.id = todo.id;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'edit-input';
+      input.maxLength = MAX_TEXT_LENGTH;
+      input.value = todo.text;
+      input.setAttribute('aria-label', '할 일 내용 수정');
+
+      const select = document.createElement('select');
+      select.className = 'edit-category';
+      select.setAttribute('aria-label', '카테고리 수정');
+      for (const [value, name] of Object.entries(CATEGORY_NAMES)) {
+        select.add(new Option(name, value));
+      }
+      select.value = todo.category;
+
+      item.append(input, select, createButton('save-button', '저장'), createButton('cancel-button', '취소'));
+      return item;
+    }
+
     function createTodoItem(todo) {
+      if (todo.id === editingId) {
+        return createEditItem(todo);
+      }
+
       const item = document.createElement('li');
       item.className = 'todo-item';
       item.classList.toggle('done', todo.done);
@@ -433,6 +519,7 @@
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
+      checkbox.className = 'todo-check';
       checkbox.checked = todo.done;
       checkbox.setAttribute('aria-label', '완료');
 
@@ -444,17 +531,7 @@
       label.className = 'label ' + todo.category;
       label.textContent = CATEGORY_NAMES[todo.category];
 
-      const editButton = document.createElement('button');
-      editButton.type = 'button';
-      editButton.className = 'edit-button';
-      editButton.textContent = '수정';
-
-      const deleteButton = document.createElement('button');
-      deleteButton.type = 'button';
-      deleteButton.className = 'delete-button';
-      deleteButton.textContent = '삭제';
-
-      item.append(checkbox, text, label, editButton, deleteButton);
+      item.append(checkbox, text, label, createButton('edit-button', '수정'), createButton('delete-button', '삭제'));
       return item;
     }
 
@@ -463,6 +540,40 @@
 
       todoList.replaceChildren(...sortedTodos.map(createTodoItem));
       emptyMessage.hidden = sortedTodos.length > 0;
+
+      const completedCount = countCompleted();
+      clearCompletedButton.textContent = `완료 항목 삭제 (${completedCount})`;
+      clearCompletedButton.disabled = completedCount === 0;
+    }
+
+    function findItemElement(id) {
+      return [...todoList.children].find((item) => item.dataset.id === id);
+    }
+
+    // ---------- 수정 상태 ----------
+    function startEdit(id) {
+      editingId = id;
+      render();
+      const input = findItemElement(id)?.querySelector('.edit-input');
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+
+    function finishEdit(shouldSave) {
+      const id = editingId;
+      const item = findItemElement(id);
+      if (shouldSave && item) {
+        const text = item.querySelector('.edit-input').value;
+        const category = item.querySelector('.edit-category').value;
+        if (updateTodo(id, text, category)) {
+          saveTodos();
+        }
+      }
+      editingId = null;
+      render();
+      findItemElement(id)?.querySelector('.edit-button')?.focus();
     }
 
     // ---------- 이벤트 연결 ----------
@@ -474,6 +585,63 @@
       }
       todoInput.value = '';
       todoInput.focus();
+    });
+
+    todoList.addEventListener('click', (event) => {
+      const item = event.target.closest('.todo-item');
+      if (!item) {
+        return;
+      }
+      const id = item.dataset.id;
+
+      if (event.target.matches('.todo-check')) {
+        toggleTodo(id);
+        saveTodos();
+        render();
+        findItemElement(id)?.querySelector('.todo-check')?.focus();
+      } else if (event.target.matches('.edit-button')) {
+        startEdit(id);
+      } else if (event.target.matches('.delete-button')) {
+        const todo = findTodo(id);
+        if (todo && confirm(`"${todo.text}" 할 일을 삭제할까요?`)) {
+          deleteTodo(id);
+          saveTodos();
+          render();
+        }
+      } else if (event.target.matches('.save-button')) {
+        finishEdit(true);
+      } else if (event.target.matches('.cancel-button')) {
+        finishEdit(false);
+      }
+    });
+
+    todoList.addEventListener('dblclick', (event) => {
+      const item = event.target.closest('.todo-item');
+      if (item && event.target.matches('.todo-text')) {
+        startEdit(item.dataset.id);
+      }
+    });
+
+    todoList.addEventListener('keydown', (event) => {
+      // 한글 입력 중(조합 중)의 Enter는 무시해야 두 번 처리되지 않는다.
+      if (editingId === null || event.isComposing) {
+        return;
+      }
+      if (event.key === 'Enter' && event.target.matches('.edit-input, .edit-category')) {
+        event.preventDefault();
+        finishEdit(true);
+      } else if (event.key === 'Escape') {
+        finishEdit(false);
+      }
+    });
+
+    clearCompletedButton.addEventListener('click', () => {
+      const completedCount = countCompleted();
+      if (completedCount > 0 && confirm(`완료된 할 일 ${completedCount}개를 삭제할까요?`)) {
+        clearCompleted();
+        saveTodos();
+        render();
+      }
     });
 
     // ---------- 시작 ----------
