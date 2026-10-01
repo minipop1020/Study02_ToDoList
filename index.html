@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>할 일 목록</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      background: #f3f4f6;
+      color: #1f2937;
+      font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      color: inherit;
+    }
+
+    :focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    .app {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 22px;
+    }
+
+    /* ① 진행률 영역 */
+    .progress {
+      margin-bottom: 20px;
+    }
+
+    .progress-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .bar {
+      height: 12px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .bar.small {
+      height: 8px;
+    }
+
+    .bar-fill {
+      width: 0;
+      height: 100%;
+      background: #6366f1;
+      transition: width 0.2s;
+    }
+
+    .bar-fill.work {
+      background: #2563eb;
+    }
+
+    .bar-fill.personal {
+      background: #16a34a;
+    }
+
+    .bar-fill.study {
+      background: #ea580c;
+    }
+
+    .progress-categories {
+      list-style: none;
+      margin: 12px 0 0;
+      padding: 0;
+    }
+
+    .progress-categories li {
+      display: grid;
+      grid-template-columns: 44px 1fr 48px;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    .progress-categories li > span:last-child {
+      text-align: right;
+      color: #6b7280;
+    }
+
+    /* 카테고리 라벨 */
+    .label {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .label.work {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .label.personal {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .label.study {
+      background: #ffedd5;
+      color: #c2410c;
+    }
+
+    /* ② 입력 영역 */
+    .add-form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .add-form input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    input[type="text"],
+    select {
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    button {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #ffffff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .add-form button {
+      border-color: #2563eb;
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    .add-form button:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    /* ③ 필터 탭 */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .filter {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+    }
+
+    .filter.active {
+      border-color: #1f2937;
+      background: #1f2937;
+      color: #ffffff;
+    }
+
+    .filter.active:hover {
+      background: #374151;
+    }
+
+    .count {
+      margin-left: 2px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* ④ 할 일 목록 */
+    .todo-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 4px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .todo-item input[type="checkbox"] {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .todo-text {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .todo-item.done .todo-text {
+      text-decoration: line-through;
+      color: #9ca3af;
+    }
+
+    .todo-item button {
+      padding: 4px 8px;
+      font-size: 13px;
+    }
+
+    .empty-message,
+    .error-message {
+      margin: 16px 0;
+      text-align: center;
+      color: #6b7280;
+    }
+
+    .error-message {
+      padding: 8px;
+      border-radius: 8px;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    /* ⑤ 하단 */
+    .footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>할 일 목록</h1>
+
+    <!-- ① 진행률 영역 -->
+    <section class="progress" aria-label="진행률">
+      <div class="progress-total">
+        <span>전체 진행률</span>
+        <strong id="progress-text">0 / 0 (0%)</strong>
+      </div>
+      <div class="bar"><div class="bar-fill" id="progress-bar"></div></div>
+      <ul class="progress-categories">
+        <li>
+          <span class="label work">업무</span>
+          <div class="bar small"><div class="bar-fill work" id="progress-bar-work"></div></div>
+          <span id="progress-text-work">0/0</span>
+        </li>
+        <li>
+          <span class="label personal">개인</span>
+          <div class="bar small"><div class="bar-fill personal" id="progress-bar-personal"></div></div>
+          <span id="progress-text-personal">0/0</span>
+        </li>
+        <li>
+          <span class="label study">공부</span>
+          <div class="bar small"><div class="bar-fill study" id="progress-bar-study"></div></div>
+          <span id="progress-text-study">0/0</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ② 입력 영역 -->
+    <form class="add-form" id="add-form">
+      <input type="text" id="todo-input" maxlength="100" placeholder="할 일을 입력하세요..." aria-label="할 일 내용">
+      <select id="category-select" aria-label="카테고리">
+        <option value="work">업무</option>
+        <option value="personal">개인</option>
+        <option value="study">공부</option>
+      </select>
+      <button type="submit" id="add-button">추가</button>
+    </form>
+
+    <!-- ③ 필터 탭 -->
+    <nav class="filters" id="filter-tabs" aria-label="카테고리 필터">
+      <button type="button" class="filter active" data-filter="all">전체 <span class="count" id="count-all">3</span></button>
+      <button type="button" class="filter" data-filter="work">업무 <span class="count" id="count-work">1</span></button>
+      <button type="button" class="filter" data-filter="personal">개인 <span class="count" id="count-personal">1</span></button>
+      <button type="button" class="filter" data-filter="study">공부 <span class="count" id="count-study">1</span></button>
+    </nav>
+
+    <!-- ④ 할 일 목록 -->
+    <p class="error-message" id="error-message" hidden></p>
+    <ul class="todo-list" id="todo-list">
+      <!-- 디자인 확인용 예시 항목 (2단계에서 자바스크립트로 그리도록 교체) -->
+      <li class="todo-item done">
+        <input type="checkbox" checked aria-label="완료">
+        <span class="todo-text">주간 보고서 작성</span>
+        <span class="label work">업무</span>
+        <button type="button">수정</button>
+        <button type="button">삭제</button>
+      </li>
+      <li class="todo-item">
+        <input type="checkbox" aria-label="완료">
+        <span class="todo-text">알고리즘 문제 3개 풀기</span>
+        <span class="label study">공부</span>
+        <button type="button">수정</button>
+        <button type="button">삭제</button>
+      </li>
+      <li class="todo-item">
+        <input type="checkbox" aria-label="완료">
+        <span class="todo-text">택배 반품 신청</span>
+        <span class="label personal">개인</span>
+        <button type="button">수정</button>
+        <button type="button">삭제</button>
+      </li>
+    </ul>
+    <p class="empty-message" id="empty-message" hidden>할 일이 없습니다. 위에서 추가해 보세요.</p>
+
+    <!-- ⑤ 하단 -->
+    <div class="footer">
+      <button type="button" id="clear-completed-button">완료 항목 삭제</button>
+    </div>
+  </main>
+
+  <script>
+    // 2단계부터 이곳에 동작(자바스크립트)을 작성한다.
+  </script>
+</body>
+</html>
