@@ -696,6 +696,14 @@
       }
     });
 
+    // 다른 탭에서 저장하면 최신 데이터로 다시 불러온다 (오래된 탭이 덮어쓰지 않도록).
+    window.addEventListener('storage', (event) => {
+      if (event.key === STORAGE_KEY || event.key === null) {
+        todos = loadTodos();
+        render();
+      }
+    });
+
     // ---------- 시작 ----------
     todos = loadTodos();
     render();
