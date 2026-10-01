@@ -315,38 +315,15 @@
 
     <!-- ③ 필터 탭 -->
     <nav class="filters" id="filter-tabs" aria-label="카테고리 필터">
-      <button type="button" class="filter active" data-filter="all">전체 <span class="count" id="count-all">3</span></button>
-      <button type="button" class="filter" data-filter="work">업무 <span class="count" id="count-work">1</span></button>
-      <button type="button" class="filter" data-filter="personal">개인 <span class="count" id="count-personal">1</span></button>
-      <button type="button" class="filter" data-filter="study">공부 <span class="count" id="count-study">1</span></button>
+      <button type="button" class="filter active" data-filter="all">전체 <span class="count" id="count-all">0</span></button>
+      <button type="button" class="filter" data-filter="work">업무 <span class="count" id="count-work">0</span></button>
+      <button type="button" class="filter" data-filter="personal">개인 <span class="count" id="count-personal">0</span></button>
+      <button type="button" class="filter" data-filter="study">공부 <span class="count" id="count-study">0</span></button>
     </nav>
 
     <!-- ④ 할 일 목록 -->
     <p class="error-message" id="error-message" hidden></p>
-    <ul class="todo-list" id="todo-list">
-      <!-- 디자인 확인용 예시 항목 (2단계에서 자바스크립트로 그리도록 교체) -->
-      <li class="todo-item done">
-        <input type="checkbox" checked aria-label="완료">
-        <span class="todo-text">주간 보고서 작성</span>
-        <span class="label work">업무</span>
-        <button type="button">수정</button>
-        <button type="button">삭제</button>
-      </li>
-      <li class="todo-item">
-        <input type="checkbox" aria-label="완료">
-        <span class="todo-text">알고리즘 문제 3개 풀기</span>
-        <span class="label study">공부</span>
-        <button type="button">수정</button>
-        <button type="button">삭제</button>
-      </li>
-      <li class="todo-item">
-        <input type="checkbox" aria-label="완료">
-        <span class="todo-text">택배 반품 신청</span>
-        <span class="label personal">개인</span>
-        <button type="button">수정</button>
-        <button type="button">삭제</button>
-      </li>
-    </ul>
+    <ul class="todo-list" id="todo-list"></ul>
     <p class="empty-message" id="empty-message" hidden>할 일이 없습니다. 위에서 추가해 보세요.</p>
 
     <!-- ⑤ 하단 -->
@@ -356,7 +333,152 @@
   </main>
 
   <script>
-    // 2단계부터 이곳에 동작(자바스크립트)을 작성한다.
+    const STORAGE_KEY = 'todos';
+    const MAX_TEXT_LENGTH = 100;
+    const CATEGORY_NAMES = { work: '업무', personal: '개인', study: '공부' };
+
+    // ---------- 상태 ----------
+    let todos = [];
+    let currentFilter = 'all';
+
+    // ---------- 화면 요소 ----------
+    const addForm = document.getElementById('add-form');
+    const todoInput = document.getElementById('todo-input');
+    const categorySelect = document.getElementById('category-select');
+    const todoList = document.getElementById('todo-list');
+    const emptyMessage = document.getElementById('empty-message');
+    const errorMessage = document.getElementById('error-message');
+
+    // ---------- 저장 ----------
+    function isValidTodo(todo) {
+      return todo !== null
+        && typeof todo === 'object'
+        && typeof todo.id === 'string'
+        && typeof todo.text === 'string'
+        && todo.text.trim() !== ''
+        && Object.hasOwn(CATEGORY_NAMES, todo.category)
+        && typeof todo.done === 'boolean'
+        && typeof todo.createdAt === 'number';
+    }
+
+    function loadTodos() {
+      let saved;
+      try {
+        saved = localStorage.getItem(STORAGE_KEY);
+      } catch (error) {
+        showError('브라우저 저장소를 사용할 수 없어 새로고침하면 데이터가 사라집니다.');
+        return [];
+      }
+      if (saved === null) {
+        return [];
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(saved);
+      } catch (error) {
+        parsed = null;
+      }
+      if (!Array.isArray(parsed)) {
+        showError('저장된 데이터를 읽을 수 없어 빈 목록으로 시작합니다.');
+        return [];
+      }
+
+      const validTodos = parsed.filter(isValidTodo);
+      if (validTodos.length < parsed.length) {
+        showError('저장된 데이터 중 일부를 읽을 수 없어 제외했습니다.');
+      }
+      return validTodos;
+    }
+
+    function saveTodos() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      } catch (error) {
+        showError('저장에 실패했습니다. 새로고침하면 변경 내용이 사라질 수 있습니다.');
+      }
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.hidden = false;
+    }
+
+    // ---------- 데이터 처리 ----------
+    function createId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function addTodo(text, category) {
+      const trimmed = text.trim().slice(0, MAX_TEXT_LENGTH);
+      if (trimmed === '') {
+        return false;
+      }
+      todos.push({
+        id: createId(),
+        text: trimmed,
+        category: category,
+        done: false,
+        createdAt: Date.now()
+      });
+      return true;
+    }
+
+    // ---------- 화면 그리기 ----------
+    function createTodoItem(todo) {
+      const item = document.createElement('li');
+      item.className = 'todo-item';
+      item.classList.toggle('done', todo.done);
+      item.dataset.id = todo.id;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = todo.done;
+      checkbox.setAttribute('aria-label', '완료');
+
+      const text = document.createElement('span');
+      text.className = 'todo-text';
+      text.textContent = todo.text;
+
+      const label = document.createElement('span');
+      label.className = 'label ' + todo.category;
+      label.textContent = CATEGORY_NAMES[todo.category];
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'edit-button';
+      editButton.textContent = '수정';
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'delete-button';
+      deleteButton.textContent = '삭제';
+
+      item.append(checkbox, text, label, editButton, deleteButton);
+      return item;
+    }
+
+    function render() {
+      const sortedTodos = [...todos].sort((a, b) => a.createdAt - b.createdAt);
+
+      todoList.replaceChildren(...sortedTodos.map(createTodoItem));
+      emptyMessage.hidden = sortedTodos.length > 0;
+    }
+
+    // ---------- 이벤트 연결 ----------
+    addForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (addTodo(todoInput.value, categorySelect.value)) {
+        saveTodos();
+        render();
+      }
+      todoInput.value = '';
+      todoInput.focus();
+    });
+
+    // ---------- 시작 ----------
+    todos = loadTodos();
+    render();
   </script>
 </body>
 </html>
