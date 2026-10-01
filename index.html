@@ -329,10 +329,10 @@
 
     <!-- ③ 필터 탭 -->
     <nav class="filters" id="filter-tabs" aria-label="카테고리 필터">
-      <button type="button" class="filter active" data-filter="all">전체 <span class="count" id="count-all">0</span></button>
-      <button type="button" class="filter" data-filter="work">업무 <span class="count" id="count-work">0</span></button>
-      <button type="button" class="filter" data-filter="personal">개인 <span class="count" id="count-personal">0</span></button>
-      <button type="button" class="filter" data-filter="study">공부 <span class="count" id="count-study">0</span></button>
+      <button type="button" class="filter active" data-filter="all" aria-pressed="true">전체 <span class="count" id="count-all">0</span></button>
+      <button type="button" class="filter" data-filter="work" aria-pressed="false">업무 <span class="count" id="count-work">0</span></button>
+      <button type="button" class="filter" data-filter="personal" aria-pressed="false">개인 <span class="count" id="count-personal">0</span></button>
+      <button type="button" class="filter" data-filter="study" aria-pressed="false">공부 <span class="count" id="count-study">0</span></button>
     </nav>
 
     <!-- ④ 할 일 목록 -->
@@ -364,6 +364,9 @@
     const emptyMessage = document.getElementById('empty-message');
     const errorMessage = document.getElementById('error-message');
     const clearCompletedButton = document.getElementById('clear-completed-button');
+    const filterTabs = document.getElementById('filter-tabs');
+    const progressText = document.getElementById('progress-text');
+    const progressBar = document.getElementById('progress-bar');
 
     // ---------- 저장 ----------
     function isValidTodo(todo) {
@@ -474,6 +477,15 @@
       return todos.filter((todo) => todo.done).length;
     }
 
+    // category를 주지 않으면 전체 기준으로 계산한다.
+    function getProgress(category) {
+      const targets = category ? todos.filter((todo) => todo.category === category) : todos;
+      const total = targets.length;
+      const done = targets.filter((todo) => todo.done).length;
+      const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+      return { done, total, percent };
+    }
+
     // ---------- 화면 그리기 ----------
     function createButton(className, text) {
       const button = document.createElement('button');
@@ -535,15 +547,46 @@
       return item;
     }
 
-    function render() {
-      const sortedTodos = [...todos].sort((a, b) => a.createdAt - b.createdAt);
+    function renderProgress() {
+      const total = getProgress();
+      progressText.textContent = `${total.done} / ${total.total} (${total.percent}%)`;
+      progressBar.style.width = `${total.percent}%`;
 
-      todoList.replaceChildren(...sortedTodos.map(createTodoItem));
-      emptyMessage.hidden = sortedTodos.length > 0;
+      for (const category of Object.keys(CATEGORY_NAMES)) {
+        const progress = getProgress(category);
+        document.getElementById(`progress-text-${category}`).textContent = `${progress.done}/${progress.total}`;
+        document.getElementById(`progress-bar-${category}`).style.width = `${progress.percent}%`;
+      }
+    }
+
+    function renderFilters() {
+      document.getElementById('count-all').textContent = todos.length;
+      for (const category of Object.keys(CATEGORY_NAMES)) {
+        const count = todos.filter((todo) => todo.category === category).length;
+        document.getElementById(`count-${category}`).textContent = count;
+      }
+
+      for (const button of filterTabs.querySelectorAll('.filter')) {
+        const isActive = button.dataset.filter === currentFilter;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+      }
+    }
+
+    function render() {
+      const visibleTodos = todos
+        .filter((todo) => currentFilter === 'all' || todo.category === currentFilter)
+        .sort((a, b) => a.createdAt - b.createdAt);
+
+      todoList.replaceChildren(...visibleTodos.map(createTodoItem));
+      emptyMessage.hidden = visibleTodos.length > 0;
 
       const completedCount = countCompleted();
       clearCompletedButton.textContent = `완료 항목 삭제 (${completedCount})`;
       clearCompletedButton.disabled = completedCount === 0;
+
+      renderProgress();
+      renderFilters();
     }
 
     function findItemElement(id) {
@@ -632,6 +675,15 @@
         finishEdit(true);
       } else if (event.key === 'Escape') {
         finishEdit(false);
+      }
+    });
+
+    filterTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('.filter');
+      if (button) {
+        currentFilter = button.dataset.filter;
+        editingId = null;
+        render();
       }
     });
 
